@@ -1,4 +1,4 @@
-module github.com/sachaos/viddy
+module github.com/juju/viddy
 
 go 1.18
 
