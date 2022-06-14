@@ -211,7 +211,7 @@ text = "white"
 			v.SetConfigType("toml")
 			assert.NoError(t, v.ReadConfig(bytes.NewBufferString(tt.configFile)))
 
-			got, err := newConfig(v, tt.args)
+			got, err := NewConfig(v, tt.args)
 			assert.Equal(t, tt.expErr, err)
 			assert.Equal(t, &tt.want, got)
 		})

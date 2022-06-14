@@ -68,7 +68,7 @@ type keymapping struct {
 }
 
 //nolint:funlen,cyclop
-func newConfig(v *viper.Viper, args []string) (*config, error) {
+func NewConfig(v *viper.Viper, args []string) (*config, error) {
 	flagSet := pflag.NewFlagSet("", pflag.ExitOnError)
 
 	// runtimeConfig
