@@ -14,7 +14,7 @@ import (
 var version string
 
 var githubTag = &latest.GithubTag{
-	Owner:             "sachaos",
+	Owner:             "juju",
 	Repository:        "viddy",
 	FixVersionStrFunc: latest.DeleteFrontV(),
 }

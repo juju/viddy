@@ -1,4 +1,4 @@
-module github.com/juju/viddy
+module lib/viddy
 
 go 1.18
 
