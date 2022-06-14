@@ -23,7 +23,7 @@ var (
 type config struct {
 	runtime runtimeConfig
 	general general
-	theme   theme
+	Theme   theme
 	keymap  keymapping
 }
 
@@ -163,7 +163,7 @@ func NewConfig(v *viper.Viper, args []string) (*config, error) {
 	v.SetDefault("color.border", "gray")
 	v.SetDefault("color.title", "gray")
 
-	conf.theme.Theme = tview.Theme{
+	conf.Theme.Theme = tview.Theme{
 		PrimitiveBackgroundColor:    tcell.GetColor(v.GetString("color.background")),
 		ContrastBackgroundColor:     tcell.GetColor(v.GetString("color.contrast_background")),
 		MoreContrastBackgroundColor: tcell.GetColor(v.GetString("color.more_contrast_background")),
