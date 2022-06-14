@@ -1,6 +1,7 @@
+//go:build windows
 // +build windows
 
-package main
+package viddy
 
 import (
 	"bytes"
