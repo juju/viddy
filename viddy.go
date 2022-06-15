@@ -341,7 +341,8 @@ func (v *Viddy) renderSnapshot(id int64) error {
 }
 
 func (v *Viddy) UpdateStatusView() {
-	v.statusView.SetText(fmt.Sprintf("Suspend %s  Diff %s  Bell %s",
+	v.statusView.SetText(fmt.Sprintf("Press '?' for help"))
+	v.statusView.SetText(fmt.Sprintf("Suspend %s  Diff %s  Bell %s Press ? for help",
 		convertToOnOrOff(v.isSuspend),
 		convertToOnOrOff(v.isShowDiff),
 		convertToOnOrOff(v.isRingBell)))
