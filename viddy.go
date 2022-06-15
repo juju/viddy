@@ -686,7 +686,7 @@ var helpTemplate = `Press ESC or Q to go back
    Toggle ring terminal bell : [yellow]b[-:-:-]
    Toggle diff               : [yellow]d[-:-:-]
    Toggle header display     : [yellow]t[-:-:-]
-   Toggle help view          : [yellow]h[-:-:-] or [yellow]?[-:-:-]
+   Toggle help view          : [yellow]h[-:-:-], [yellow]?[-:-:-]
 
    [::u]Pager[-:-:-]
 
