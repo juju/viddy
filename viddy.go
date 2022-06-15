@@ -341,8 +341,7 @@ func (v *Viddy) renderSnapshot(id int64) error {
 }
 
 func (v *Viddy) UpdateStatusView() {
-	v.statusView.SetText(fmt.Sprintf("Press '?' for help"))
-	v.statusView.SetText(fmt.Sprintf("Suspend %s  Diff %s  Bell %s Press ? for help",
+	v.statusView.SetText(fmt.Sprintf("(S)uspend %s  (D)iff %s  (B)ell %s (H)elp [blue]?",
 		convertToOnOrOff(v.isSuspend),
 		convertToOnOrOff(v.isShowDiff),
 		convertToOnOrOff(v.isRingBell)))
@@ -396,7 +395,7 @@ func (v *Viddy) arrange() {
 		bottom.AddItem(tview.NewBox(), 0, 1, false)
 	}
 
-	bottom.AddItem(v.statusView, 25, 1, false)
+	bottom.AddItem(v.statusView, 40, 1, false)
 
 	flex.AddItem(bottom, 1, 1, false)
 
@@ -566,7 +565,7 @@ func (v *Viddy) Run() error {
 			if v.isDebug {
 				v.ShowLogView(!v.showLogView)
 			}
-		case '?':
+		case '?', 'h':
 			v.ShowHelpView(!v.showHelpView)
 		case '/':
 			if v.query != "" {
@@ -687,7 +686,7 @@ var helpTemplate = `Press ESC or Q to go back
    Toggle ring terminal bell : [yellow]b[-:-:-]
    Toggle diff               : [yellow]d[-:-:-]
    Toggle header display     : [yellow]t[-:-:-]
-   Toggle help view          : [yellow]?[-:-:-]
+   Toggle help view          : [yellow]h[-:-:-] or [yellow]?[-:-:-]
 
    [::u]Pager[-:-:-]
 
