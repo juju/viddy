@@ -422,7 +422,7 @@ func (v *Viddy) arrange() {
 		bottom.AddItem(tview.NewBox(), 0, 1, false)
 	}
 
-	bottom.AddItem(v.statusView, 25, 1, false)
+	bottom.AddItem(v.statusView, 40, 1, false)
 
 	flex.AddItem(bottom, 1, 1, false)
 
