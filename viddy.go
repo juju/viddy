@@ -368,9 +368,8 @@ func (v *Viddy) renderSnapshot(id int64) error {
 }
 
 func (v *Viddy) UpdateStatusView() {
-	v.statusView.SetText(fmt.Sprintf("(S)uspend %s  (D)iff %s  (B)ell %s (H)elp [blue]?",
+	v.statusView.SetText(fmt.Sprintf("(S)uspend %s (B)ell %s (H)elp [blue]?",
 		convertToOnOrOff(v.isSuspend),
-		convertToOnOrOff(v.isShowDiff),
 		convertToOnOrOff(v.isRingBell)))
 }
 
@@ -422,7 +421,7 @@ func (v *Viddy) arrange() {
 		bottom.AddItem(tview.NewBox(), 0, 1, false)
 	}
 
-	bottom.AddItem(v.statusView, 40, 1, false)
+	bottom.AddItem(v.statusView, 28, 1, false)
 
 	flex.AddItem(bottom, 1, 1, false)
 
@@ -585,8 +584,8 @@ func (v *Viddy) Run() error {
 			v.isSuspend = !v.isSuspend
 		case 'b':
 			v.isRingBell = !v.isRingBell
-		case 'd':
-			v.SetIsShowDiff(!v.isShowDiff)
+		//case 'd':
+		//	v.SetIsShowDiff(!v.isShowDiff)
 		case 't':
 			v.SetIsNoTitle(!v.isNoTitle)
 		case 'x':
@@ -712,7 +711,6 @@ var helpTemplate = `Press ESC or Q to go back
    Toggle time machine mode  : [yellow]SPACE[-:-:-]
    Toggle suspend execution  : [yellow]s[-:-:-]
    Toggle ring terminal bell : [yellow]b[-:-:-]
-   Toggle diff               : [yellow]d[-:-:-]
    Toggle header display     : [yellow]t[-:-:-]
    Toggle help view          : [yellow]h[-:-:-], [yellow]?[-:-:-]
 
