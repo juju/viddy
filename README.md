@@ -34,61 +34,6 @@ Viddy well, gopher. Viddy well.
 * Customize keymappings.
 * Customize color.
 
-## Install
-
-### Mac
-
-#### [Homebrew](https://brew.sh)
-
-```shell
-brew install viddy
-```
-
-#### [MacPorts](https://www.macports.org)
-
-```shell
-sudo port install viddy
-```
-
-### Linux
-
-```shell
-wget -O viddy.tar.gz https://github.com/sachaos/viddy/releases/download/v0.3.6/viddy_0.3.6_Linux_x86_64.tar.gz && tar xvf viddy.tar.gz && mv viddy /usr/local/bin
-```
-
-#### ArchLinux ( AUR )
-
-```shell
-yay -S viddy
-```
-Alternatively you can use the [AUR Git repo](https://aur.archlinux.org/packages/viddy/) directly
-
-#### Alpine Linux
-
-After [enabling the community repository](https://wiki.alpinelinux.org/wiki/Enable_Community_Repository):
-
-```shell
-apk add viddy
-```
-
-### [asdf version manager](https://asdf-vm.com)
-
-```shell
-asdf plugin add viddy
-asdf install viddy latest
-asdf global viddy latest
-```
-
-### Go
-
-```shell
-go install github.com/sachaos/viddy@latest
-```
-
-### Other
-
-Download from [release page](https://github.com/sachaos/viddy/releases).
-
 ## Keymaps
 
 | key       |                                            |
@@ -113,27 +58,6 @@ Download from [release page](https://github.com/sachaos/viddy/releases).
 | Shift-O   | (Time machine mode) Go to oldest position  |
 | Shift-N   | (Time machine mode) Go to current position |
 
-## Configuration
-
-Install your config file on `$XDG_CONFIG_HOME/viddy.toml`
-On macOS, the path is `~/Library/Application\ Support/viddy.toml`.
-
-```toml
-[general]
-shell = "zsh"
-shell_options = ""
-
-[keymap]
-timemachine_go_to_past = "Down"
-timemachine_go_to_more_past = "Shift-Down"
-timemachine_go_to_future = "Up"
-timemachine_go_to_more_future = "Shift-Up"
-timemachine_go_to_now = "Ctrl-Shift-Up"
-timemachine_go_to_oldest = "Ctrl-Shift-Down"
-
-[color]
-background = "white" # Default value is inherit from terminal color.
-```
 
 ## What is "viddy" ?
 
