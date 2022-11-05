@@ -30,7 +30,7 @@ func Test_newConfig(t *testing.T) {
 			noTitle:      false,
 			debug:        false,
 		},
-		theme: theme{
+		Theme: theme{
 			Theme: tview.Theme{
 				PrimitiveBackgroundColor:    0,
 				ContrastBackgroundColor:     0,
@@ -196,8 +196,8 @@ text = "white"
 				c.runtime.cmd = "ls"
 				c.runtime.args = []string{}
 
-				c.theme.PrimitiveBackgroundColor = tcell.ColorBlack
-				c.theme.PrimaryTextColor = tcell.ColorWhite
+				c.Theme.PrimitiveBackgroundColor = tcell.ColorBlack
+				c.Theme.PrimaryTextColor = tcell.ColorWhite
 
 				return c
 			}(),
@@ -211,7 +211,7 @@ text = "white"
 			v.SetConfigType("toml")
 			assert.NoError(t, v.ReadConfig(bytes.NewBufferString(tt.configFile)))
 
-			got, err := newConfig(v, tt.args)
+			got, err := NewConfig(v, tt.args)
 			assert.Equal(t, tt.expErr, err)
 			assert.Equal(t, &tt.want, got)
 		})

@@ -1,19 +1,9 @@
 # Viddy
 
-<p align="center">
-<img src="images/logo.png" width="200" alt="viddy" title="viddy" />
-</p>
-
 Modern `watch` command.
 
-Viddy well, gopher. Viddy well.
-
-## Demo
-
-<p align="center">
-<img src="images/demo.gif" width="100%" alt="viddy" title="viddy" />
-</p>
-
+_Note:_ This is the fork of original viddy tool, which provides the ability to import viddy tool a package in the source code.
+This fork allows to use viddy to show output data in different juju commands.
 
 ## Features
 
@@ -43,7 +33,7 @@ Viddy well, gopher. Viddy well.
 | b         | Toggle ring terminal bell                  |
 | d         | Toggle diff                                |
 | t         | Toggle header display                      |
-| ?         | Toggle help view                           |
+| ? or h    | Toggle help view                           |
 | /         | Search text                                |
 | j         | Pager: next line                           |
 | k         | Pager: previous line                       |
@@ -64,8 +54,7 @@ Viddy well, gopher. Viddy well.
 "viddy" is Nadsat word meaning to see.
 Nadsat is fictional argot of gangs in the violent book and movie "A Clockwork Orange".
 
-## Credits
+## PS
 
-The gopher's logo of viddy is licensed under the Creative Commons 3.0 Attributions license.
-
-The original Go gopher was designed by [Renee French](https://reneefrench.blogspot.com/).
+The Juju team thanks viddy developers (https://github.com/sachaos/viddy) for creating such a cool 'watch' analog,
+and looking forward to switch to original repo after "importing as package" functionality will be introduced.
