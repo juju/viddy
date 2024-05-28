@@ -9,7 +9,6 @@ import (
 	"html/template"
 	"io"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,12 +44,12 @@ type Viddy struct {
 	timeView     *tview.TextView
 	historyView  *tview.Table
 	historyRows  map[int64]*HistoryRow
-	sync.RWMutex
 
 	// bWidth store current pty width.
 	bWidth atomic.Value
 
-	idList []int64
+	// id -> row count (as of just after the snapshot was added).
+	historyRowCount map[int64]int
 
 	bodyView    *tview.TextView
 	app         *tview.Application
@@ -59,10 +58,11 @@ type Viddy struct {
 	statusView  *tview.TextView
 	queryEditor *tview.InputField
 
-	snapshotQueue <-chan *Snapshot
-	queue         chan int64
-	finishedQueue chan int64
-	diffQueue     chan int64
+	snapshotQueue    <-chan *Snapshot
+	isSuspendedQueue chan<- bool
+	queue            chan int64
+	finishedQueue    chan int64
+	diffQueue        chan int64
 
 	currentID        int64
 	latestFinishedID int64
@@ -71,6 +71,7 @@ type Viddy struct {
 	isNoTitle        bool
 	isRingBell       bool
 	isShowDiff       bool
+	skipEmptyDiffs   bool
 	isEditQuery      bool
 	unfold           bool
 	pty              bool
@@ -102,18 +103,30 @@ func NewViddy(conf *config) *Viddy {
 	begin := time.Now().UnixNano()
 
 	newSnap := func(id int64, before *Snapshot, finish chan<- struct{}) *Snapshot {
-		return NewSnapshot(id, conf.runtime.cmd, conf.runtime.args, conf.general.shell, conf.general.shellOptions, before, finish)
+		return NewSnapshot(
+			id,
+			conf.runtime.cmd,
+			conf.runtime.args,
+			conf.general.noShell,
+			conf.general.shell,
+			conf.general.shellOptions,
+			before,
+			finish,
+		)
 	}
 
-	var snapshotQueue <-chan *Snapshot
+	var (
+		snapshotQueue    <-chan *Snapshot
+		isSuspendedQueue chan<- bool
+	)
 
 	switch conf.runtime.mode {
 	case ViddyIntervalModeClockwork:
-		snapshotQueue = ClockSnapshot(begin, newSnap, conf.runtime.interval)
+		snapshotQueue, isSuspendedQueue = ClockSnapshot(begin, newSnap, conf.runtime.interval)
 	case ViddyIntervalModeSequential:
-		snapshotQueue = SequentialSnapshot(newSnap, conf.runtime.interval)
+		snapshotQueue, isSuspendedQueue = SequentialSnapshot(newSnap, conf.runtime.interval)
 	case ViddyIntervalModePrecise:
-		snapshotQueue = PreciseSnapshot(newSnap, conf.runtime.interval)
+		snapshotQueue, isSuspendedQueue = PreciseSnapshot(newSnap, conf.runtime.interval)
 	}
 
 	return &Viddy{
@@ -126,17 +139,21 @@ func NewViddy(conf *config) *Viddy {
 		snapshots:   sync.Map{},
 		historyRows: map[int64]*HistoryRow{},
 
-		snapshotQueue: snapshotQueue,
-		queue:         make(chan int64),
-		finishedQueue: make(chan int64),
-		diffQueue:     make(chan int64, 100),
+		historyRowCount: map[int64]int{},
 
-		isRingBell: conf.general.bell,
-		isShowDiff: conf.general.differences,
-		isNoTitle:  conf.general.noTitle,
-		isDebug:    conf.general.debug,
-		unfold:     conf.general.unfold,
-		pty:        conf.general.pty,
+		snapshotQueue:    snapshotQueue,
+		isSuspendedQueue: isSuspendedQueue,
+		queue:            make(chan int64),
+		finishedQueue:    make(chan int64),
+		diffQueue:        make(chan int64, 100),
+
+		isRingBell:     conf.general.bell,
+		isShowDiff:     conf.general.differences,
+		skipEmptyDiffs: conf.general.skipEmptyDiffs,
+		isNoTitle:      conf.general.noTitle,
+		isDebug:        conf.general.debug,
+		unfold:         conf.general.unfold,
+		pty:            conf.general.pty,
 
 		currentID:        -1,
 		latestFinishedID: -1,
@@ -175,14 +192,16 @@ func (v *Viddy) SetIsNoTitle(b bool) {
 
 func (v *Viddy) SetIsShowDiff(b bool) {
 	v.isShowDiff = b
-	v.setSelection(v.currentID)
+	v.setSelection(v.currentID, -1)
 	v.arrange()
 }
 
 func (v *Viddy) SetIsTimeMachine(b bool) {
 	v.isTimeMachine = b
 	if !v.isTimeMachine {
-		v.setSelection(v.latestFinishedID)
+		v.setSelection(v.latestFinishedID, -1)
+	} else {
+		v.goToNowOnTimeMachine()
 	}
 
 	v.arrange()
@@ -205,6 +224,26 @@ func (v *Viddy) startRunner() {
 	}
 }
 
+func (v *Viddy) updateSelection() {
+	if !v.isTimeMachine {
+		v.setSelection(v.latestFinishedID, -1)
+	} else {
+		v.setSelection(v.currentID, -1)
+	}
+}
+
+func (v *Viddy) addSnapshotToView(id int64, r *HistoryRow) {
+	v.historyView.InsertRow(0)
+	v.historyView.SetCell(0, 0, r.id)
+	v.historyView.SetCell(0, 1, r.addition)
+	v.historyView.SetCell(0, 2, r.deletion)
+	v.historyView.SetCell(0, 3, r.exitCode)
+
+	v.historyRowCount[id] = v.historyView.GetRowCount()
+
+	v.updateSelection()
+}
+
 func (v *Viddy) diffQueueHandler() {
 	for {
 		func() {
@@ -225,15 +264,23 @@ func (v *Viddy) diffQueueHandler() {
 				return
 			}
 
-			if v.isRingBell {
-				if s.diffAdditionCount > 0 || s.diffDeletionCount > 0 {
+			if s.diffAdditionCount > 0 || s.diffDeletionCount > 0 {
+				if v.isRingBell {
 					fmt.Print(string(byte(7)))
 				}
+			} else if v.skipEmptyDiffs {
+				return
 			}
 
 			r, ok := v.historyRows[id]
 			if !ok {
 				return
+			}
+
+			// if skipEmptyDiffs is true, queueHandler wouldn't have added the
+			// snapshot to view, so we need to add it here.
+			if v.skipEmptyDiffs {
+				v.addSnapshotToView(id, r)
 			}
 
 			r.addition.SetText("+" + strconv.Itoa(s.diffAdditionCount))
@@ -242,7 +289,7 @@ func (v *Viddy) diffQueueHandler() {
 	}
 }
 
-//nolint:funlen,gocognit,cyclop
+//nolint:funlen
 func (v *Viddy) queueHandler() {
 	for {
 		func() {
@@ -271,51 +318,50 @@ func (v *Viddy) queueHandler() {
 				ls := v.getSnapShot(v.latestFinishedID)
 				if ls == nil || s.start.After(ls.start) {
 					v.latestFinishedID = id
-					if !v.isTimeMachine {
-						v.setSelection(id)
-					} else {
-						v.setSelection(v.currentID)
-					}
+					v.updateSelection()
 				}
 			case id := <-v.queue:
-				if v.isSuspend {
-					return
-				}
-
 				s := v.getSnapShot(id)
 				idCell := tview.NewTableCell(strconv.FormatInt(s.id, 10)).SetTextColor(tview.Styles.SecondaryTextColor)
 				additionCell := tview.NewTableCell("").SetTextColor(tcell.ColorGreen)
 				deletionCell := tview.NewTableCell("").SetTextColor(tcell.ColorRed)
 				exitCodeCell := tview.NewTableCell("").SetTextColor(tcell.ColorYellow)
 
-				v.historyRows[s.id] = &HistoryRow{
+				r := &HistoryRow{
 					id:       idCell,
 					addition: additionCell,
 					deletion: deletionCell,
 					exitCode: exitCodeCell,
 				}
+				v.historyRows[s.id] = r
 
-				v.historyView.InsertRow(0)
-				v.historyView.SetCell(0, 0, idCell)
-				v.historyView.SetCell(0, 1, additionCell)
-				v.historyView.SetCell(0, 2, deletionCell)
-				v.historyView.SetCell(0, 3, exitCodeCell)
-
-				v.Lock()
-				v.idList = append(v.idList, id)
-				v.Unlock()
-
-				if !v.isTimeMachine {
-					v.setSelection(v.latestFinishedID)
-				} else {
-					v.setSelection(v.currentID)
+				// if skipEmptyDiffs is true, we need to check if the snapshot
+				// is empty before adding it to the view (in diffQueueHandler).
+				//
+				// This means we're trading off two things:
+				//
+				// 1. We're not showing the snapshot in history view until the
+				//    command finishes running, which means it's not possible
+				//    to see partial output.
+				// 2. Order of the snapshots in history view is lost
+				//    (in non-sequential modes), as some commands could finish
+				//    running quicker than others for whatever reason.
+				//
+				// It of course is possible to address these issues by adding
+				// all snapshots to the history view and then removing the empty
+				// ones but it unnecessarily complicates the implementation.
+				if !v.skipEmptyDiffs {
+					v.addSnapshotToView(id, r)
 				}
 			}
 		}()
 	}
 }
 
-func (v *Viddy) setSelection(id int64) {
+// setSelection selects the given row in the history view. If row is -1, it will
+// attempt to select the row corresponding to the given id (or default to the
+// latest row if id doesn't exist).
+func (v *Viddy) setSelection(id int64, row int) {
 	if id == -1 {
 		return
 	}
@@ -327,14 +373,11 @@ func (v *Viddy) setSelection(id int64) {
 		v.historyView.SetSelectable(true, false)
 	}
 
-	v.RLock()
-	index := sort.Search(len(v.idList), func(i int) bool {
-		return v.idList[i] >= id
-	})
-	i := len(v.idList) - index - 1
-	v.RUnlock()
+	if row == -1 {
+		row = v.historyView.GetRowCount() - v.historyRowCount[id]
+	}
 
-	v.historyView.Select(i, 0)
+	v.historyView.Select(row, 0)
 	v.currentID = id
 	unix := v.begin + id*int64(time.Millisecond)
 	v.timeView.SetText(time.Unix(unix/int64(time.Second), unix%int64(time.Second)).String())
@@ -433,7 +476,8 @@ func (v *Viddy) arrange() {
 }
 
 // Run is entry point to run viddy.
-// nolint: funlen,gocognit,cyclop
+//
+//nolint:funlen,gocognit,cyclop,gocyclo,maintidx
 func (v *Viddy) Run() error {
 	b := tview.NewTextView()
 	b.SetDynamicColors(true)
@@ -574,20 +618,40 @@ func (v *Viddy) Run() error {
 			any = true
 		}
 
-		if event.Key() == tcell.KeyEsc || event.Rune() == 'q' {
+		if event.Key() == tcell.KeyEsc {
 			v.showHelpView = false
 			v.arrange()
+		}
+
+		if event.Rune() == 'q' {
+			if v.showHelpView { // if it's help mode, just go back
+				v.showHelpView = false
+				v.arrange()
+			} else { // it's not help view, so just quit
+				v.app.Stop()
+				os.Exit(0)
+			}
+		}
+
+		// quit viddy from any view
+		if event.Rune() == 'Q' {
+			v.app.Stop()
+			os.Exit(0)
 		}
 
 		switch event.Rune() {
 		case 's':
 			v.isSuspend = !v.isSuspend
+			v.isSuspendedQueue <- v.isSuspend
 		case 'b':
 			v.isRingBell = !v.isRingBell
 		//case 'd':
 		//	v.SetIsShowDiff(!v.isShowDiff)
 		case 't':
 			v.SetIsNoTitle(!v.isNoTitle)
+		case 'u':
+			b.SetWrap(v.unfold)
+			v.unfold = !v.unfold
 		case 'x':
 			if v.isDebug {
 				v.ShowLogView(!v.showLogView)
@@ -618,8 +682,6 @@ func (v *Viddy) Run() error {
 
 	v.UpdateStatusView()
 
-	app.EnableMouse(true)
-
 	v.app = app
 	v.arrange()
 
@@ -632,87 +694,64 @@ func (v *Viddy) Run() error {
 	return app.Run()
 }
 
-func (v *Viddy) goToPastOnTimeMachine() {
-	count := v.historyView.GetRowCount()
-	selection, _ := v.historyView.GetSelection()
-
-	if selection+1 < count {
-		cell := v.historyView.GetCell(selection+1, 0)
-		if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-			v.setSelection(id)
-		}
+func (v *Viddy) goToRow(row int) {
+	if row < 0 {
+		row = 0
+	} else if count := v.historyView.GetRowCount(); row >= count {
+		row = count - 1
 	}
+
+	var (
+		cell    = v.historyView.GetCell(row, 0)
+		id, err = strconv.ParseInt(cell.Text, 10, 64)
+	)
+
+	if err == nil { // if _no_ error
+		v.setSelection(id, row)
+	}
+}
+
+func (v *Viddy) goToPastOnTimeMachine() {
+	selection, _ := v.historyView.GetSelection()
+	v.goToRow(selection + 1)
 }
 
 func (v *Viddy) goToFutureOnTimeMachine() {
 	selection, _ := v.historyView.GetSelection()
-	if 0 <= selection-1 {
-		cell := v.historyView.GetCell(selection-1, 0)
-		if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-			v.setSelection(id)
-		}
-	}
+	v.goToRow(selection - 1)
 }
 
 func (v *Viddy) goToMorePastOnTimeMachine() {
-	count := v.historyView.GetRowCount()
 	selection, _ := v.historyView.GetSelection()
-
-	if selection+10 < count {
-		cell := v.historyView.GetCell(selection+10, 0)
-		if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-			v.setSelection(id)
-		}
-	} else {
-		cell := v.historyView.GetCell(count-1, 0)
-		if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-			v.setSelection(id)
-		}
-	}
+	v.goToRow(selection + 10)
 }
 
 func (v *Viddy) goToMoreFutureOnTimeMachine() {
 	selection, _ := v.historyView.GetSelection()
-	if 0 <= selection-10 {
-		cell := v.historyView.GetCell(selection-10, 0)
-		if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-			v.setSelection(id)
-		}
-	} else {
-		cell := v.historyView.GetCell(0, 0)
-		if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-			v.setSelection(id)
-		}
-	}
+	v.goToRow(selection - 10)
 }
 
 func (v *Viddy) goToNowOnTimeMachine() {
-	cell := v.historyView.GetCell(0, 0)
-	if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-		v.setSelection(id)
-	}
+	v.goToRow(0)
 }
 
 func (v *Viddy) goToOldestOnTimeMachine() {
-	count := v.historyView.GetRowCount()
-	cell := v.historyView.GetCell(count-1, 0)
-
-	if id, err := strconv.ParseInt(cell.Text, 10, 64); err == nil {
-		v.setSelection(id)
-	}
+	v.goToRow(v.historyView.GetRowCount() - 1)
 }
 
-var helpTemplate = `Press ESC or Q to go back
+var helpTemplate = `Press ESC or q to go back
 
  [::b]Key Bindings[-:-:-]
 
-   [::u]General[-:-:-]     
+   [::u]General[-:-:-]
 
    Toggle time machine mode  : [yellow]SPACE[-:-:-]
    Toggle suspend execution  : [yellow]s[-:-:-]
    Toggle ring terminal bell : [yellow]b[-:-:-]
    Toggle header display     : [yellow]t[-:-:-]
    Toggle help view          : [yellow]h[-:-:-], [yellow]?[-:-:-]
+   Toggle unfold             : [yellow]u[-:-:-]
+   Quit Viddy                : [yellow]Q[-:-:-]
 
    [::u]Pager[-:-:-]
 

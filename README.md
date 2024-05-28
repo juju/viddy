@@ -29,10 +29,10 @@ This fork allows to use viddy to show output data in different juju commands.
 | key       |                                            |
 |-----------|--------------------------------------------|
 | SPACE     | Toggle time machine mode                   |
-| s         | Toggle suspend execution                   |
-| b         | Toggle ring terminal bell                  |
-| d         | Toggle diff                                |
-| t         | Toggle header display                      |
+| s         | Toggle <ins>s</ins>uspend execution        |
+| b         | Toggle ring terminal <ins>b</ins>ell       |
+| d         | Toggle <ins>d</ins>iff                     |
+| t         | Toggle header/<ins>t</ins>itle display     |
 | ? or h    | Toggle help view                           |
 | /         | Search text                                |
 | j         | Pager: next line                           |
@@ -48,6 +48,28 @@ This fork allows to use viddy to show output data in different juju commands.
 | Shift-O   | (Time machine mode) Go to oldest position  |
 | Shift-N   | (Time machine mode) Go to current position |
 
+## Configuration
+
+Install your config file on `$XDG_CONFIG_HOME/viddy.toml`
+On macOS, the path is `~/Library/Application\ Support/viddy.toml`.
+
+```toml
+[general]
+no_shell = false
+shell = "zsh"
+shell_options = ""
+
+[keymap]
+timemachine_go_to_past = "Down"
+timemachine_go_to_more_past = "Shift-Down"
+timemachine_go_to_future = "Up"
+timemachine_go_to_more_future = "Shift-Up"
+timemachine_go_to_now = "Ctrl-Shift-Up"
+timemachine_go_to_oldest = "Ctrl-Shift-Down"
+
+[color]
+background = "white" # Default value is inherit from terminal color.
+```
 
 ## What is "viddy" ?
 

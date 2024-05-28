@@ -38,14 +38,16 @@ type runtimeConfig struct {
 }
 
 type general struct {
-	shell        string
-	shellOptions string
-	debug        bool
-	bell         bool
-	differences  bool
-	noTitle      bool
-	pty          bool
-	unfold       bool
+	noShell        bool
+	shell          string
+	shellOptions   string
+	debug          bool
+	bell           bool
+	differences    bool
+	skipEmptyDiffs bool
+	noTitle        bool
+	pty            bool
+	unfold         bool
 }
 
 type theme struct {
@@ -87,8 +89,10 @@ func NewConfig(v *viper.Viper, args []string) (*config, error) {
 	// general
 	flagSet.BoolP("bell", "b", false, "ring terminal bell changes between updates")
 	flagSet.BoolP("differences", "d", false, "highlight changes between updates")
+	flagSet.BoolP("skip-empty-diffs", "s", false, "skip snapshots with no changes (+0 -0) in history")
 	flagSet.BoolP("no-title", "t", false, "turn off header")
 	flagSet.Bool("debug", false, "")
+	flagSet.Bool("no-shell", false, "do not use a shell even if --shell is set")
 	flagSet.String("shell", "", "shell (default \"sh\")")
 	flagSet.String("shell-options", "", "additional shell options")
 	flagSet.Bool("unfold", false, "unfold")
@@ -130,6 +134,10 @@ func NewConfig(v *viper.Viper, args []string) (*config, error) {
 		return nil, err
 	}
 
+	if err := v.BindPFlag("general.no_shell", flagSet.Lookup("no-shell")); err != nil {
+		return nil, err
+	}
+
 	if err := v.BindPFlag("general.shell", flagSet.Lookup("shell")); err != nil {
 		return nil, err
 	}
@@ -148,6 +156,10 @@ func NewConfig(v *viper.Viper, args []string) (*config, error) {
 		return nil, err
 	}
 
+	if err := v.BindPFlag("general.skip_empty_diffs", flagSet.Lookup("skip-empty-diffs")); err != nil {
+		return nil, err
+	}
+
 	if err := v.BindPFlag("general.no_title", flagSet.Lookup("no-title")); err != nil {
 		return nil, err
 	}
@@ -161,10 +173,12 @@ func NewConfig(v *viper.Viper, args []string) (*config, error) {
 	}
 
 	conf.general.debug = v.GetBool("general.debug")
+	conf.general.noShell = v.GetBool("general.no_shell")
 	conf.general.shell = v.GetString("general.shell")
 	conf.general.shellOptions = v.GetString("general.shell_options")
 	conf.general.bell, _ = flagSet.GetBool("bell")
 	conf.general.differences, _ = flagSet.GetBool("differences")
+	conf.general.skipEmptyDiffs, _ = flagSet.GetBool("skip-empty-diffs")
 	conf.general.noTitle, _ = flagSet.GetBool("no-title")
 	conf.general.unfold = v.GetBool("general.unfold")
 	conf.general.pty = v.GetBool("general.pty")
@@ -295,7 +309,7 @@ type parseKeyStrokeError struct {
 }
 
 func (e parseKeyStrokeError) Error() string {
-	return fmt.Sprintf("connot parse key: %q", e.key)
+	return fmt.Sprintf("cannot parse key: %q", e.key)
 }
 
 // ParseKeyStroke parse string describing key.
